@@ -1,0 +1,21 @@
+{
+  "name": "talk-converter",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "bun run index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.33.1",
+    "@aws-sdk/client-s3": "^3.731.1",
+    "@aws-sdk/client-transcribe": "^3.731.1",
+    "bun": "^1.1.45",
+    "ytdl-core": "^4.11.5"
+  }
+}
