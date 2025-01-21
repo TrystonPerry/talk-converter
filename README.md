@@ -26,15 +26,22 @@ A powerful CLI tool that helps you split long YouTube videos into individual tal
    Copy the `.env.template` file to `.env` and fill in the values:
 
    ```
+   # Anthropic API Key for generating summaries and articles
    ANTHROPIC_API_KEY=your_anthropic_api_key
-   AWS_ACCESS_KEY_ID=your_aws_access_key
-   AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+
+   # AWS Credentials
+   AWS_ACCESS_KEY_ID=your_aws_access_key_id
+   AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+   AWS_REGION=us-east-1              # The AWS region for your services
+   AWS_S3_BUCKET=your_s3_bucket_name # The S3 bucket for storing audio files and transcripts
    ```
 
    Make sure your AWS credentials are set up correctly with the following permissions:
 
    - AmazonS3FullAccess
    - AmazonTranscribeFullAccess
+
+   The S3 bucket should be created in your AWS account and accessible with your credentials.
 
 ## How to Use
 
