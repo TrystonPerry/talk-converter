@@ -1,3 +1,10 @@
-npm run start -- "https://www.youtube.com/watch?v=AifVBwTPLYc" "32:38,53:29" "Finite State Machines by AJ Caldwell" &&
-npm run start -- "https://www.youtube.com/watch?v=AifVBwTPLYc" "54:35,1:27:46" "Windmill.dev: The last low-code solution you'll ever need by Tryston Perry" &&
-npm run start -- "https://www.youtube.com/watch?v=AifVBwTPLYc" "1:28:47,2:06:21" "LLMs Chatbots w/RAG - And why I think it is here to stay by Adam Villarreal"
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Talks are now detected from the captions, so one command covers a whole event.
+# Sanity-check the boundaries with --list first, then drop it to slice.
+npm run start -- "https://www.youtube.com/watch?v=AifVBwTPLYc"
+
+# If detection gets one wrong, cut that talk by hand instead:
+# npm run start -- "https://www.youtube.com/watch?v=AifVBwTPLYc" \
+#   --range "32:38,53:29" --title "Finite State Machines by AJ Caldwell"
