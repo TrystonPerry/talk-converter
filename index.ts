@@ -87,6 +87,9 @@ function ensureInstalled(binary: string, versionCommand: string) {
 export function checkDependencies() {
   log.info("Checking external tools");
   ensureInstalled("ffmpeg", "ffmpeg -version");
+  // Bundled with ffmpeg on most distributions, but not all — checked separately
+  // so a split package fails here rather than mid-run on the duration probe.
+  ensureInstalled("ffprobe", "ffprobe -version");
   ensureInstalled("yt-dlp", "yt-dlp --version");
   ensureInstalled("claude", "claude --version");
 }
