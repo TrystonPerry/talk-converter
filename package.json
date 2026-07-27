@@ -1,17 +1,14 @@
 {
   "name": "talk-converter",
   "module": "index.ts",
-  "type": "module",
-  "scripts": {
-    "start": "bun run index.ts"
-  },
   "devDependencies": {
     "@types/bun": "^1.3.14"
   },
   "peerDependencies": {
     "typescript": "^7.0.2"
   },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.115.0"
-  }
+  "scripts": {
+    "start": "bun run index.ts"
+  },
+  "type": "module"
 }

@@ -37,6 +37,16 @@ export function timeToSeconds(time: string) {
   throw new Error("Invalid time format");
 }
 
+// Seconds back to the H:MM:SS form the timestamps were given in.
+export function formatClock(totalSeconds: number) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  return `${hours}:${pad(minutes)}:${pad(seconds)}`;
+}
+
 type Cue = { start: number; end: number; lines: string[] };
 
 function vttTimeToSeconds(time: string) {
@@ -96,4 +106,30 @@ export function transcriptFromCues(cues: Cue[], start: number, end: number) {
   }
 
   return lines.join("\n");
+}
+
+// Talk detection has to answer "when was this said", so lines keep their timing
+// instead of being flattened. Cues are bucketed into fixed intervals rather than
+// labelled individually: one timestamp per cue would triple the token count for
+// precision far finer than a keyframe-snapped cut can honour anyway.
+export function timestampedTranscript(cues: Cue[], intervalSeconds = 15) {
+  const blocks: { start: number; lines: string[] }[] = [];
+  let previous: string | undefined;
+
+  for (const cue of cues) {
+    for (const line of cue.lines) {
+      if (line === previous) continue;
+      previous = line;
+
+      const bucket = Math.floor(cue.start / intervalSeconds) * intervalSeconds;
+      const current = blocks.at(-1);
+
+      if (current && current.start === bucket) current.lines.push(line);
+      else blocks.push({ start: bucket, lines: [line] });
+    }
+  }
+
+  return blocks
+    .map((block) => `[${formatClock(block.start)}] ${block.lines.join(" ")}`)
+    .join("\n");
 }
