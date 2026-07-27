@@ -1,3 +1,23 @@
+export function getVideoId(url: string) {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`Invalid YouTube URL: ${url}`);
+  }
+
+  const id =
+    parsed.hostname === "youtu.be"
+      ? parsed.pathname.slice(1)
+      : parsed.searchParams.get("v");
+
+  if (!id || !/^[a-zA-Z0-9_-]{11}$/.test(id)) {
+    throw new Error(`Could not extract a video ID from: ${url}`);
+  }
+
+  return id;
+}
+
 export function timeToSeconds(time: string) {
   const parts = time.split(":");
 

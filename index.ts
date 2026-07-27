@@ -1,8 +1,6 @@
 import { execSync } from "child_process";
 import fs from "fs/promises";
-import { createWriteStream } from "fs";
 import path from "path";
-import ytdl from "ytdl-core";
 import {
   TranscribeClient,
   StartTranscriptionJobCommand,
@@ -10,7 +8,7 @@ import {
 } from "@aws-sdk/client-transcribe";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import Anthropic from "@anthropic-ai/sdk";
-import { timeToSeconds } from "./utils";
+import { getVideoId, timeToSeconds } from "./utils";
 
 const client = new Anthropic({
   apiKey: process.env["ANTHROPIC_API_KEY"], // This is the default and can be omitted
@@ -30,6 +28,17 @@ export function ensureFfmpegInstalled() {
   console.log("ffmpeg is installed");
 }
 
+export function ensureYtDlpInstalled() {
+  try {
+    execSync("yt-dlp --version", { stdio: "ignore" });
+  } catch (error) {
+    console.error("Error: yt-dlp is not installed or not in the system PATH.");
+    process.exit(1);
+  }
+
+  console.log("yt-dlp is installed");
+}
+
 export async function makeRelevantDirectories() {
   await fs.mkdir(youtubeDir, { recursive: true });
   await fs.mkdir(talksDir, { recursive: true });
@@ -38,45 +47,21 @@ export async function makeRelevantDirectories() {
 }
 
 export async function downloadYoutubeVideo(url: string) {
-  // Validate the YouTube URL
-  if (!ytdl.validateURL(url)) {
-    console.error("Invalid YouTube URL");
-    process.exit(1);
-  }
-
-  // Extract the video ID from the URL
-  const videoId = ytdl.getURLVideoID(url);
+  const videoId = getVideoId(url);
 
   // Check if the video already exists
   const videoPath = path.join(youtubeDir, `${videoId}.mp4`);
-  if (await fs.exists(videoPath)) {
+  if (await Bun.file(videoPath).exists()) {
     console.log(`Youtube video found: ${videoPath}`);
   } else {
-    // Download Youtube video
+    // 720p minimum, muxed into a single mp4 so ffmpeg can seek it
     console.log("Starting YouTube video download...");
-    await new Promise((resolve, reject) => {
-      const stream = ytdl(url, {
-        quality: "highest",
-        filter: "audioandvideo",
-      });
-
-      let downloadedBytes = 0;
-
-      stream.on("data", (chunk) => {
-        downloadedBytes += chunk.length;
-        process.stdout.write(
-          `Download progress: ${Math.round(downloadedBytes / 1024 / 1024)}MB\r`
-        );
-      });
-
-      stream.on("error", (err) => reject(err));
-
-      stream
-        .pipe(createWriteStream(videoPath))
-        .on("finish", resolve)
-        .on("error", (err) => reject(err));
-    });
-    console.log("Download complete");
+    execSync(
+      `yt-dlp -f "bv[height>=720]+ba/b[height>=720]/bv+ba/b" ` +
+        `--merge-output-format mp4 -o ${JSON.stringify(videoPath)} ` +
+        `-- ${JSON.stringify(videoId)}`,
+      { stdio: "inherit" }
+    );
 
     console.log(`Youtube video downloaded: ${videoPath}`);
   }
@@ -96,7 +81,7 @@ export async function spliceVideoIntoSegments(
   const talkPath = path.join(talksDir, title.replace(/[^a-zA-Z0-9]/g, "_"));
 
   // Extract the talk segment from the video
-  if (!(await fs.exists(`${talkPath}.mp4`))) {
+  if (!(await Bun.file(`${talkPath}.mp4`).exists())) {
     execSync(
       `ffmpeg -i ${videoPath} -ss ${start} -to ${end} -c copy ${talkPath}.mp4`,
       {
@@ -106,7 +91,7 @@ export async function spliceVideoIntoSegments(
   }
 
   // Get the audio transcript from the talk segment
-  if (!(await fs.exists(`${talkPath}.mp3`))) {
+  if (!(await Bun.file(`${talkPath}.mp3`).exists())) {
     execSync(
       `ffmpeg -i ${talkPath}.mp4 -vn -ab 320k -ar 44100 -y ${talkPath}.mp3`,
       {
@@ -124,7 +109,7 @@ export async function generateTranscript(talkPath: string) {
   console.log(`Generating transcript for ${audioFile}`);
 
   // Check if the transcript already exists
-  if (await fs.exists(transcriptFile)) {
+  if (await Bun.file(transcriptFile).exists()) {
     console.log(`Transcript found: ${transcriptFile}`);
   } else {
     // Initialize the Transcribe and S3 clients
@@ -189,58 +174,44 @@ export async function generateTranscript(talkPath: string) {
   }
 }
 
+// Opus 5 thinks by default, so the response may lead with a thinking block —
+// collect every text block rather than indexing content[0].
+async function promptClaude(prompt: string) {
+  const message = await client.messages.create({
+    max_tokens: 16000,
+    messages: [{ role: "user", content: prompt }],
+    model: "claude-opus-5",
+  });
+
+  if (message.stop_reason === "refusal") {
+    throw new Error("Claude declined the request");
+  }
+
+  return message.content
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
+}
+
 export async function generateSummary(talkPath: string) {
   const transcriptFile = `${talkPath}.txt`;
   const transcript = await fs.readFile(transcriptFile, "utf8");
 
-  let description = "";
-  let article = "";
-
-  {
-    const message = await client.messages.create({
-      max_tokens: 1024,
-      messages: [
-        {
-          role: "user",
-          content: `
+  const description = await promptClaude(`
         given this transcript from an audio file (with possible parts missing)
-  
+
         ${transcript}
-  
+
         generate a summary of the talk for video description purposes
-        `,
-        },
-      ],
-      model: "claude-3-opus-20240229",
-    });
+        `);
 
-    if (message.content[0].type === "text") {
-      description = message.content[0].text;
-    }
-  }
-
-  {
-    const message = await client.messages.create({
-      max_tokens: 1024,
-      messages: [
-        {
-          role: "user",
-          content: `
+  const article = await promptClaude(`
       given this transcript from an audio file (with possible parts missing)
 
       ${transcript}
 
       give me an article from this content. along with the q&a section at the end
-      `,
-        },
-      ],
-      model: "claude-3-opus-20240229",
-    });
-
-    if (message.content[0].type === "text") {
-      article = message.content[0].text;
-    }
-  }
+      `);
 
   const summaryPath = `${talkPath}.md`;
   await fs.writeFile(
@@ -271,16 +242,16 @@ async function main() {
   }
 
   try {
-    // Ensure ffmpeg is installed
+    // Ensure external tools are installed
     ensureFfmpegInstalled();
+    ensureYtDlpInstalled();
 
     // Create necessary directories
     await makeRelevantDirectories();
 
-    // Download the YouTube video
+    // Download the YouTube video (reuses the cached file if already present)
     console.log("\n1. Reading YouTube video...");
-    const videoId = ytdl.getURLVideoID(url);
-    const videoPath = path.join(youtubeDir, `${videoId}.mp4`);
+    const videoPath = await downloadYoutubeVideo(url);
 
     console.log("\n2. Extracting talk segment...");
     const talkPath = await spliceVideoIntoSegments(

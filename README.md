@@ -8,8 +8,9 @@ A powerful CLI tool that helps you split long YouTube videos into individual tal
 
 1. **Prerequisites**
 
-   - Node.js (v16 or higher)
+   - Bun (v1.3 or higher)
    - ffmpeg (required for video processing)
+   - yt-dlp (required for downloading source videos)
    - AWS Account (for transcription services)
    - Anthropic API Key (for AI-powered summaries)
 
@@ -20,8 +21,11 @@ A powerful CLI tool that helps you split long YouTube videos into individual tal
    git clone [repository-url]
    cd talk-converter
 
+   # Install system tools (Arch)
+   sudo pacman -S ffmpeg yt-dlp
+
    # Install dependencies
-   npm install
+   bun install
    ```
 
 3. **Environment Variables**
@@ -49,13 +53,12 @@ A powerful CLI tool that helps you split long YouTube videos into individual tal
 
 1. **Basic Usage**
 
-   Make sure you create 2 folders in the proejct directory.
-   __talks for talk files
-   __youtube for youtube source videos .mp4
+   The `__talks` and `__youtube` folders are created automatically on first run.
+   The source video is downloaded via yt-dlp (720p minimum) into
+   `__youtube/{YouTube Video ID}.mp4` and reused on subsequent runs, so the
+   full video is only fetched once no matter how many talks you slice from it.
 
-   Use either Youtube Creator studio or the youtube-dl CLI tool download the .mp4 720p minumum video you desire (DEVx stream in this case) and renmae the download to be the {YouTube Video ID}.mp4 ie: youtube.com/watch?v=2cMzN_4guQ0 becomes 2cMzN_4guQ0.mp4
-
-   Then watch the video through and update the run.sh bash script with a single line for each talk you'd like to process. Script is run once per individual talk to be sliced.
+   Watch the video through and update the run.sh bash script with a single line for each talk you'd like to process. Script is run once per individual talk to be sliced.
 
    - `YouTube URL`: Full URL of the YouTube video
    - `timestamps`: Format "start,end" in seconds or HH:MM:SS format
@@ -86,4 +89,4 @@ A powerful CLI tool that helps you split long YouTube videos into individual tal
 - Make sure you have sufficient AWS permissions for S3 and Transcribe services
 - Video segments are saved in the `__talks` directory
 - Original downloaded videos are stored in the `__youtube` directory
-- The tool originally was supposed to download the YouTube video for you via code, but I was unable to make that work with the given time constraints 
+
